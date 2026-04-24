@@ -1,9 +1,7 @@
 import "server-only";
 
 const SARVAM_ENDPOINT = "https://api.sarvam.ai/v1/chat/completions";
-const SARVAM_DEFAULT_MODEL = "sarvam-30b";
-// Can be changed to "sarvam-105b" later via environment configuration.
-const SARVAM_MODEL = process.env.SARVAM_MODEL ?? SARVAM_DEFAULT_MODEL;
+const SARVAM_MODEL = "sarvam-30b";
 
 type SarvamResponse = {
   choices?: Array<{
@@ -21,9 +19,8 @@ type SarvamResponse = {
 function buildSarvamHeaders(apiKey: string): HeadersInit {
   return {
     "Content-Type": "application/json",
-    "API-Subscription-Key": apiKey,
-    "api-subscription-key": apiKey,
-    Authorization: `Bearer ${apiKey}`
+    Authorization: `Bearer ${apiKey}`,
+    "api-subscription-key": apiKey
   };
 }
 
@@ -40,7 +37,7 @@ function getSarvamErrorMessage(body: unknown): string {
 export async function sarvamJSON<T>(instruction: string): Promise<T> {
   const apiKey = process.env.SARVAM_API_KEY?.trim();
   if (!apiKey) {
-    throw new Error("SARVAM_API_KEY is not configured");
+    throw new Error("SARVAM_API_KEY is not configured. Set it in your server environment.");
   }
 
   const response = await fetch(SARVAM_ENDPOINT, {
