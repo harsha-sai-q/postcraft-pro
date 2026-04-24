@@ -21,7 +21,9 @@ type SarvamResponse = {
 function buildSarvamHeaders(apiKey: string): HeadersInit {
   return {
     "Content-Type": "application/json",
-    "API-Subscription-Key": apiKey
+    "API-Subscription-Key": apiKey,
+    "api-subscription-key": apiKey,
+    Authorization: `Bearer ${apiKey}`
   };
 }
 
@@ -36,9 +38,9 @@ function getSarvamErrorMessage(body: unknown): string {
 }
 
 export async function sarvamJSON<T>(instruction: string): Promise<T> {
-  const apiKey = process.env.SARVAM_API_KEY;
+  const apiKey = process.env.SARVAM_API_KEY?.trim();
   if (!apiKey) {
-    throw new Error("Sarvam API key is missing: set SARVAM_API_KEY on the server environment.");
+    throw new Error("SARVAM_API_KEY is not configured");
   }
 
   const response = await fetch(SARVAM_ENDPOINT, {
