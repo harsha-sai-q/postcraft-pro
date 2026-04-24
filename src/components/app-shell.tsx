@@ -6,12 +6,12 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 const nav = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Generator", href: "/generator" },
-  { label: "History", href: "/history" },
-  { label: "Analyzer", href: "/analyzer" },
-  { label: "Settings", href: "/settings" }
-] as const satisfies ReadonlyArray<{ label: string; href: Route }>;
+  ["Dashboard", "/dashboard"],
+  ["Generator", "/generator"],
+  ["History", "/history"],
+  ["Analyzer", "/analyzer"],
+  ["Settings", "/settings"]
+] as const satisfies ReadonlyArray<readonly [label: string, href: Route]>;
 
 export function AppShell({ children, email }: { children: React.ReactNode; email: string }) {
   const pathname = usePathname();
@@ -25,7 +25,7 @@ export function AppShell({ children, email }: { children: React.ReactNode; email
         </Link>
         <p className="mt-2 text-xs text-slate-500">{email}</p>
         <nav className="mt-6 space-y-2">
-          {nav.map(({ label, href }) => (
+          {nav.map(([label, href]) => (
             <Link
               key={href}
               href={href}
@@ -46,7 +46,7 @@ export function AppShell({ children, email }: { children: React.ReactNode; email
           </div>
           {open && (
             <nav className="mt-3 grid grid-cols-2 gap-2">
-              {nav.map(({ label, href }) => (
+              {nav.map(([label, href]) => (
                 <Link key={href} href={href} className="rounded-md border border-slate-200 p-2 text-sm" onClick={() => setOpen(false)}>
                   {label}
                 </Link>
