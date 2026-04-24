@@ -5,13 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-const nav: ReadonlyArray<{ label: string; href: Route }> = [
+const nav = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Generator", href: "/generator" },
   { label: "History", href: "/history" },
   { label: "Analyzer", href: "/analyzer" },
   { label: "Settings", href: "/settings" }
-];
+] as const satisfies ReadonlyArray<{ label: string; href: Route }>;
 
 export function AppShell({ children, email }: { children: React.ReactNode; email: string }) {
   const pathname = usePathname();
