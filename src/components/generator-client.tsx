@@ -100,7 +100,6 @@ export function GeneratorClient() {
       if (saveResult.ok) {
         setStatus("Saved successfully");
       } else {
-        setStatus(null);
         setError(saveResult.error ?? "Save failed");
       }
     } catch (e) {

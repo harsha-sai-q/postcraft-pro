@@ -1,50 +1,17 @@
-import "server-only";
-
-const SARVAM_ENDPOINT = "https://api.sarvam.ai/v1/chat/completions";
-const SARVAM_MODEL = "sarvam-30b";
-
-type SarvamResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-  error?: {
-    message?: string;
-    code?: string | number;
-  };
-  message?: string;
-};
-
-function buildSarvamHeaders(apiKey: string): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
-    "api-subscription-key": apiKey
-  };
-}
-
-function getSarvamErrorMessage(body: unknown): string {
-  if (!body || typeof body !== "object") return "Unknown Sarvam error";
-
-  const maybe = body as SarvamResponse;
-  if (maybe.error?.message) return maybe.error.message;
-  if (typeof maybe.message === "string" && maybe.message.trim()) return maybe.message;
-
-  return "Unknown Sarvam error";
-}
-
 export async function sarvamJSON<T>(instruction: string): Promise<T> {
-  const apiKey = process.env.SARVAM_API_KEY?.trim();
+  const apiKey = process.env.SARVAM_API_KEY;
   if (!apiKey) {
-    throw new Error("SARVAM_API_KEY is not configured. Set it in your server environment.");
+    throw new Error("SARVAM_API_KEY is not configured");
   }
 
-  const response = await fetch(SARVAM_ENDPOINT, {
+  const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
     method: "POST",
-    headers: buildSarvamHeaders(apiKey),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`
+    },
     body: JSON.stringify({
-      model: SARVAM_MODEL,
+      model: "sarvam-m",
       messages: [
         {
           role: "system",
@@ -56,21 +23,14 @@ export async function sarvamJSON<T>(instruction: string): Promise<T> {
     })
   });
 
-  let data: SarvamResponse | null = null;
-  try {
-    data = (await response.json()) as SarvamResponse;
-  } catch {
-    data = null;
-  }
-
   if (!response.ok) {
-    const message = getSarvamErrorMessage(data);
-    throw new Error(`Sarvam request failed (${response.status}): ${message}`);
+    throw new Error(`Sarvam error: ${response.status}`);
   }
 
+  const data = await response.json();
   const content = data?.choices?.[0]?.message?.content;
   if (!content || typeof content !== "string") {
-    throw new Error("Invalid Sarvam response shape: missing choices[0].message.content");
+    throw new Error("Invalid Sarvam response shape");
   }
 
   try {
@@ -80,6 +40,6 @@ export async function sarvamJSON<T>(instruction: string): Promise<T> {
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]) as T;
     }
-    throw new Error("Sarvam did not return valid JSON content");
+    throw new Error("Sarvam did not return valid JSON");
   }
 }
