@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { formats, lengths, tones } from "@/lib/constants";
 import type { ScoreBreakdown } from "@/lib/types";
+import { normalizeScoreBreakdown } from "@/lib/score-normalization";
 
 const SCORE_LABELS: Record<Exclude<keyof ScoreBreakdown, "overallScore">, string> = {
   hookStrength: "Hook Strength",
@@ -45,7 +46,7 @@ export function GeneratorClient() {
       setContent(p.content);
       setFormattedContent(p.formatted_content ?? "");
       setImagePrompt(p.image_prompt ?? "");
-      setScore(p.score_breakdown ?? null);
+      setScore(normalizeScoreBreakdown(p.score_breakdown) ?? null);
     })();
   }, [searchParams]);
 
@@ -98,7 +99,7 @@ export function GeneratorClient() {
         }).then((r) => r.json());
 
         if (s.ok && s?.data) {
-          scoreData = s.data;
+          scoreData = normalizeScoreBreakdown(s.data);
           setScore(scoreData);
         } else {
           optionalWarnings.push("Scoring failed, but your post is still ready.");
@@ -209,14 +210,14 @@ export function GeneratorClient() {
 
           {score && (
             <div className="card">
-              <p className="text-lg font-semibold">Overall score: {score.overallScore}/100</p>
+              <p className="text-lg font-semibold">Overall score: {Math.round(score.overallScore)}/100</p>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 {(Object.entries(score) as Array<[keyof ScoreBreakdown, ScoreBreakdown[keyof ScoreBreakdown]]>)
                   .filter(([k]) => k !== "overallScore")
                   .map(([key, value]) => (
                     <div key={String(key)} className="rounded-lg border border-slate-200 p-3">
                       <p className="font-medium">{SCORE_LABELS[key as Exclude<keyof ScoreBreakdown, "overallScore">]}</p>
-                      <p>Score: {(value as { score: number }).score}</p>
+                      <p>Score: {Math.round((value as { score: number }).score)}</p>
                       <p className="text-sm text-slate-600">{(value as { tip: string }).tip}</p>
                     </div>
                   ))}
