@@ -18,12 +18,9 @@ export function GeneratorClient() {
   const [tone, setTone] = useState(tones[0]);
   const [format, setFormat] = useState(formats[0]);
   const [length, setLength] = useState<(typeof lengths)[number]>("Medium");
-  const [highlight, setHighlight] = useState(true);
-  const [emojiFormat, setEmojiFormat] = useState(true);
   const [needImagePrompt, setNeedImagePrompt] = useState(true);
   const [needScore, setNeedScore] = useState(true);
   const [content, setContent] = useState("");
-  const [highlightedContent, setHighlightedContent] = useState("");
   const [formattedContent, setFormattedContent] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
   const [score, setScore] = useState<ScoreBreakdown | null>(null);
@@ -31,7 +28,7 @@ export function GeneratorClient() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
-  const [view, setView] = useState<"original" | "highlighted" | "formatted">("original");
+  const [view, setView] = useState<"original" | "formatted">("original");
 
   useEffect(() => {
     const postId = searchParams.get("postId");
@@ -46,19 +43,13 @@ export function GeneratorClient() {
       setFormat(p.format);
       setLength(p.length);
       setContent(p.content);
-      setHighlightedContent(p.highlighted_content ?? "");
       setFormattedContent(p.formatted_content ?? "");
       setImagePrompt(p.image_prompt ?? "");
       setScore(p.score_breakdown ?? null);
     })();
   }, [searchParams]);
 
-  const activeText =
-    view === "formatted" && formattedContent
-      ? formattedContent
-      : view === "highlighted" && highlightedContent
-        ? highlightedContent
-        : content;
+  const activeText = view === "formatted" && formattedContent ? formattedContent : content;
 
   const generate = async () => {
     setLoading(true);
@@ -80,40 +71,23 @@ export function GeneratorClient() {
       const currentContent = generated.data.content as string;
       setContent(currentContent);
 
-      let highlighted = "";
       let formatted = "";
       let scoreData: ScoreBreakdown | null = null;
       let prompt = "";
       const optionalWarnings: string[] = [];
 
-      if (highlight) {
-        const h = await fetch("/api/highlight-post", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: currentContent })
-        }).then((r) => r.json());
+      const f = await fetch("/api/format-post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: currentContent })
+      }).then((r) => r.json());
 
-        if (h.ok && h?.data?.content) {
-          highlighted = h.data.content;
-          setHighlightedContent(highlighted);
-        } else {
-          optionalWarnings.push(h.error ?? "Highlighting failed; showing original text.");
-        }
-      }
-
-      if (emojiFormat) {
-        const f = await fetch("/api/format-post", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: currentContent })
-        }).then((r) => r.json());
-
-        if (f.ok && f?.data?.content) {
-          formatted = f.data.content;
-          setFormattedContent(formatted);
-        } else {
-          optionalWarnings.push(f.error ?? "Formatting failed; showing original text.");
-        }
+      if (f.ok && f?.data?.content) {
+        formatted = f.data.content;
+        setFormattedContent(formatted);
+      } else {
+        optionalWarnings.push("Formatting failed, showing original post.");
+        setFormattedContent("");
       }
 
       if (needScore) {
@@ -127,7 +101,7 @@ export function GeneratorClient() {
           scoreData = s.data;
           setScore(scoreData);
         } else {
-          optionalWarnings.push(s.error ?? "Scoring failed; you can still use this post.");
+          optionalWarnings.push("Scoring failed, but your post is still ready.");
           setScore(null);
         }
       }
@@ -143,7 +117,7 @@ export function GeneratorClient() {
           prompt = i.data.imagePrompt;
           setImagePrompt(prompt);
         } else {
-          optionalWarnings.push(i.error ?? "Image prompt generation failed.");
+          optionalWarnings.push("Image prompt generation failed.");
           setImagePrompt("");
         }
       }
@@ -159,7 +133,6 @@ export function GeneratorClient() {
           format,
           length,
           content: currentContent,
-          highlighted_content: highlighted || null,
           formatted_content: formatted || null,
           score_breakdown: scoreData,
           engagement_score: scoreData?.overallScore ?? null,
@@ -201,12 +174,6 @@ export function GeneratorClient() {
             ))}
           </select>
           <label className="flex gap-2 text-sm">
-            <input type="checkbox" checked={highlight} onChange={(e) => setHighlight(e.target.checked)} /> Highlight key points
-          </label>
-          <label className="flex gap-2 text-sm">
-            <input type="checkbox" checked={emojiFormat} onChange={(e) => setEmojiFormat(e.target.checked)} /> Add emoji formatting
-          </label>
-          <label className="flex gap-2 text-sm">
             <input type="checkbox" checked={needImagePrompt} onChange={(e) => setNeedImagePrompt(e.target.checked)} /> Generate image prompt
           </label>
           <label className="flex gap-2 text-sm">
@@ -229,9 +196,6 @@ export function GeneratorClient() {
             <div className="mb-3 flex flex-wrap gap-2">
               <button className="btn-secondary" onClick={() => setView("original")}>
                 Original
-              </button>
-              <button className="btn-secondary" onClick={() => setView("highlighted")}>
-                Highlighted
               </button>
               <button className="btn-secondary" onClick={() => setView("formatted")}>
                 Formatted
