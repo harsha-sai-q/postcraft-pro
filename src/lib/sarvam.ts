@@ -41,7 +41,7 @@ function getSarvamErrorMessage(body: unknown): string {
   return "Unknown Sarvam error";
 }
 
-export async function sarvamJSON<T>(instruction: string): Promise<T> {
+async function sarvamRequest(instruction: string, systemContent: string): Promise<string> {
   const apiKey = process.env.SARVAM_API_KEY;
   if (!apiKey) {
     throw new Error("SARVAM_API_KEY is not configured");
@@ -55,7 +55,7 @@ export async function sarvamJSON<T>(instruction: string): Promise<T> {
       messages: [
         {
           role: "system",
-          content: "You are a LinkedIn content assistant. Return strict JSON only."
+          content: systemContent
         },
         { role: "user", content: instruction }
       ],
@@ -79,6 +79,16 @@ export async function sarvamJSON<T>(instruction: string): Promise<T> {
   if (!content || typeof content !== "string") {
     throw new Error("Invalid Sarvam response shape: missing choices[0].message.content");
   }
+
+  return content;
+}
+
+export async function sarvamText(instruction: string): Promise<string> {
+  return sarvamRequest(instruction, "You are a LinkedIn content assistant. Return only plain text output.");
+}
+
+export async function sarvamJSON<T>(instruction: string): Promise<T> {
+  const content = await sarvamRequest(instruction, "You are a LinkedIn content assistant. Return strict JSON only.");
 
   try {
     return JSON.parse(content) as T;
