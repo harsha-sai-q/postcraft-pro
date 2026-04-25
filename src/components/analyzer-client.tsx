@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, EmptyState, SectionHeading, StatusMessage } from "./ui-kit";
+import { AppCard, Button, EmptyState, PageHeader, StatusMessage } from "./ui-kit";
 
 type Analysis = {
   hookTechnique: string;
@@ -12,6 +12,11 @@ type Analysis = {
   lessonsToApply: string;
 };
 
+function friendlyAnalyzerError(message: string | null | undefined) {
+  if (!message) return "Analysis failed. Please try again.";
+  return /403|schema|invalid|sarvam|json/i.test(message) ? "Analysis failed. Please try again." : message;
+}
+
 export function AnalyzerClient() {
   const [sourcePost, setSourcePost] = useState("");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -21,9 +26,20 @@ export function AnalyzerClient() {
   const analyze = async () => {
     setLoading(true);
     setError(null);
-    const res = await fetch("/api/analyze-competitor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourcePost }) }).then((r) => r.json());
-    if (!res.ok) setError(res.error || "Failed to analyze this post");
-    else setAnalysis(res.data.analysis);
+
+    const res = await fetch("/api/analyze-competitor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourcePost })
+    }).then((r) => r.json());
+
+    if (!res.ok) {
+      setError(friendlyAnalyzerError(res.error));
+      setAnalysis(null);
+    } else {
+      setAnalysis(res.data.analysis);
+    }
+
     setLoading(false);
   };
 
@@ -32,19 +48,30 @@ export function AnalyzerClient() {
   }, []);
 
   return (
-    <main>
-      <h1 className="text-2xl font-bold tracking-tight">Competitor Analyzer</h1>
-      <p className="mt-1 text-sm text-slate-600">Break down why a post works, then apply those lessons to your own writing.</p>
+    <main className="mx-auto max-w-7xl">
+      <PageHeader
+        title="Competitor Analyzer"
+        subtitle="Paste a post and get structured insights you can apply to your own writing."
+      />
 
-      <Card className="mt-4 space-y-3">
-        <SectionHeading title="Analyze a competitor post" />
-        <textarea className="textarea min-h-44" placeholder="Paste competitor LinkedIn post" value={sourcePost} onChange={(e) => setSourcePost(e.target.value)} />
-        <button className="btn-primary" disabled={!sourcePost.trim() || loading} onClick={analyze}>
-          {loading ? "Analyzing…" : "Analyze post"}
-        </button>
-        {loading ? <StatusMessage message="Analyzing post structure and messaging…" tone="neutral" /> : null}
+      <AppCard className="space-y-4">
+        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Paste LinkedIn post</label>
+        <textarea
+          className="textarea min-h-64"
+          placeholder="Paste competitor LinkedIn post"
+          value={sourcePost}
+          onChange={(e) => setSourcePost(e.target.value)}
+        />
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="primary" disabled={!sourcePost.trim() || loading} onClick={analyze}>
+            {loading ? "Analyzing post…" : "Analyze post"}
+          </Button>
+          {loading ? <StatusMessage message="Reading hook, tone, and structure…" tone="neutral" /> : null}
+        </div>
+
         {error ? <StatusMessage message={error} tone="error" /> : null}
-      </Card>
+      </AppCard>
 
       {!analysis && !loading ? (
         <div className="mt-4">
@@ -53,14 +80,32 @@ export function AnalyzerClient() {
       ) : null}
 
       {analysis ? (
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <Card><h3 className="font-semibold">Hook technique</h3><p className="mt-2 text-sm text-slate-700">{analysis.hookTechnique}</p></Card>
-          <Card><h3 className="font-semibold">Tone</h3><p className="mt-2 text-sm text-slate-700">{analysis.tone}</p></Card>
-          <Card><h3 className="font-semibold">Structure</h3><p className="mt-2 text-sm text-slate-700">{analysis.structure}</p></Card>
-          <Card><h3 className="font-semibold">What works</h3><p className="mt-2 text-sm text-slate-700">{analysis.whatWorks}</p></Card>
-          <Card><h3 className="font-semibold">What does not work</h3><p className="mt-2 text-sm text-slate-700">{analysis.whatDoesNotWork}</p></Card>
-          <Card><h3 className="font-semibold">Lessons to apply</h3><p className="mt-2 text-sm text-slate-700">{analysis.lessonsToApply}</p></Card>
-        </div>
+        <section className="mt-4 grid gap-4 md:grid-cols-2">
+          <AppCard>
+            <h3 className="font-semibold text-slate-900">Hook technique</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-700">{analysis.hookTechnique}</p>
+          </AppCard>
+          <AppCard>
+            <h3 className="font-semibold text-slate-900">Tone</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-700">{analysis.tone}</p>
+          </AppCard>
+          <AppCard>
+            <h3 className="font-semibold text-slate-900">Structure</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-700">{analysis.structure}</p>
+          </AppCard>
+          <AppCard>
+            <h3 className="font-semibold text-slate-900">What works</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-700">{analysis.whatWorks}</p>
+          </AppCard>
+          <AppCard>
+            <h3 className="font-semibold text-slate-900">What does not work</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-700">{analysis.whatDoesNotWork}</p>
+          </AppCard>
+          <AppCard>
+            <h3 className="font-semibold text-slate-900">Lessons to apply</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-700">{analysis.lessonsToApply}</p>
+          </AppCard>
+        </section>
       ) : null}
     </main>
   );

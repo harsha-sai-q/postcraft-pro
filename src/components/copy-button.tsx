@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "./ui-kit";
 
 export function CopyButton({ value, className = "" }: { value: string; className?: string }) {
   const [copied, setCopied] = useState(false);
@@ -12,14 +13,17 @@ export function CopyButton({ value, className = "" }: { value: string; className
   }, [copied]);
 
   return (
-    <button
-      className={`btn-secondary ${className}`}
+    <Button
+      variant="secondary"
+      className={className}
+      aria-live="polite"
       onClick={async () => {
         if (!value) return;
         await navigator.clipboard.writeText(value);
         setCopied(true);
-      }}>
+      }}
+    >
       {copied ? "Copied!" : "Copy"}
-    </button>
+    </Button>
   );
 }

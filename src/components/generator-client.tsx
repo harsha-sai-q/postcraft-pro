@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { formats, lengths, tones } from "@/lib/constants";
 import type { ScoreBreakdown } from "@/lib/types";
 import { normalizeScoreBreakdown } from "@/lib/score-normalization";
-import { Card, EmptyState, ScoreCard, SectionHeading, StatusMessage } from "./ui-kit";
+import { Button, EmptyState, PageHeader, ScoreCard, SectionHeading, StatusMessage, AppCard } from "./ui-kit";
 import { CopyButton } from "./copy-button";
 
 const SCORE_LABELS: Record<Exclude<keyof ScoreBreakdown, "overallScore">, string> = {
@@ -22,6 +22,54 @@ function getScoreLabel(score: number) {
   if (score >= 60) return "Good";
   if (score >= 40) return "Needs work";
   return "Weak";
+}
+
+function friendlyCriticalError(message: string | null | undefined, fallback: string) {
+  if (!message) return fallback;
+  return /403|schema|invalid json|response shape|sarvam|empty/i.test(message) ? fallback : message;
+}
+
+function friendlyOptionalError(kind: "formatted" | "score" | "image") {
+  if (kind === "formatted") return "Formatted version was not available, so we saved the original.";
+  if (kind === "score") return "We could not calculate a score this time, but your post is ready.";
+  return "Image prompt was not available this time.";
+}
+
+function ScorePanel({ score }: { score: ScoreBreakdown | null }) {
+  const scoreEntries = useMemo(
+    () =>
+      score
+        ? (Object.entries(score) as Array<[keyof ScoreBreakdown, ScoreBreakdown[keyof ScoreBreakdown]]>).filter(([key]) => key !== "overallScore")
+        : [],
+    [score]
+  );
+
+  return (
+    <AppCard>
+      <SectionHeading title="Post quality" />
+      {score ? (
+        <>
+          <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center">
+            <p className="text-5xl font-semibold tracking-tight text-slate-900">{Math.round(score.overallScore)}</p>
+            <p className="text-sm text-slate-500">/100</p>
+            <p className="mt-2 text-sm font-medium text-slate-700">{getScoreLabel(score.overallScore)}</p>
+          </div>
+          <div className="space-y-3">
+            {scoreEntries.map(([key, value]) => (
+              <ScoreCard
+                key={String(key)}
+                title={SCORE_LABELS[key as Exclude<keyof ScoreBreakdown, "overallScore">]}
+                score={(value as { score: number }).score}
+                tip={(value as { tip: string }).tip}
+              />
+            ))}
+          </div>
+        </>
+      ) : (
+        <EmptyState title="Generate a post to see quality insights." />
+      )}
+    </AppCard>
+  );
 }
 
 export function GeneratorClient() {
@@ -64,14 +112,6 @@ export function GeneratorClient() {
 
   const activeText = view === "formatted" && formattedContent ? formattedContent : content;
 
-  const scoreEntries = useMemo(
-    () =>
-      score
-        ? (Object.entries(score) as Array<[keyof ScoreBreakdown, ScoreBreakdown[keyof ScoreBreakdown]]>).filter(([key]) => key !== "overallScore")
-        : [],
-    [score]
-  );
-
   const generate = async () => {
     setLoading(true);
     setStatusMessage(null);
@@ -79,7 +119,7 @@ export function GeneratorClient() {
     setStatusTone("neutral");
 
     try {
-      setProgressText("Writing your post…");
+      setProgressText("Writing post…");
       const generated = await fetch("/api/generate-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,7 +127,7 @@ export function GeneratorClient() {
       }).then((r) => r.json());
 
       if (!generated.ok || !generated?.data?.content) {
-        throw new Error(generated.error ?? "Failed generating post");
+        throw new Error(friendlyCriticalError(generated.error, "Post generation failed. Please try again."));
       }
 
       const currentContent = generated.data.content as string;
@@ -98,7 +138,6 @@ export function GeneratorClient() {
       let prompt = "";
       const optionalWarnings: string[] = [];
 
-      setProgressText("Formatting…");
       const f = await fetch("/api/format-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -109,12 +148,12 @@ export function GeneratorClient() {
         formatted = f.data.content;
         setFormattedContent(formatted);
       } else {
-        optionalWarnings.push("Formatted version was not generated. Showing original.");
+        optionalWarnings.push(friendlyOptionalError("formatted"));
         setFormattedContent("");
       }
 
       if (needScore) {
-        setProgressText("Scoring…");
+        setProgressText("Scoring post…");
         const s = await fetch("/api/score-post", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -125,7 +164,7 @@ export function GeneratorClient() {
           scoreData = normalizeScoreBreakdown(s.data);
           setScore(scoreData);
         } else {
-          optionalWarnings.push("Score could not be generated. You can still edit and save your post.");
+          optionalWarnings.push(friendlyOptionalError("score"));
           setScore(null);
         }
       } else {
@@ -133,6 +172,7 @@ export function GeneratorClient() {
       }
 
       if (needImagePrompt) {
+        setProgressText("Generating image prompt…");
         const i = await fetch("/api/image-prompt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -143,7 +183,7 @@ export function GeneratorClient() {
           prompt = i.data.imagePrompt;
           setImagePrompt(prompt);
         } else {
-          optionalWarnings.push("Image prompt was not generated this time.");
+          optionalWarnings.push(friendlyOptionalError("image"));
           setImagePrompt("");
         }
       } else {
@@ -152,7 +192,7 @@ export function GeneratorClient() {
 
       setWarnings(optionalWarnings);
 
-      setProgressText("Saving…");
+      setProgressText("Saving draft…");
       const saveResult = await fetch("/api/save-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -170,14 +210,15 @@ export function GeneratorClient() {
       }).then((r) => r.json());
 
       if (saveResult.ok) {
-        setStatusMessage("Post saved to history");
+        setStatusMessage("Draft saved to history.");
         setStatusTone("success");
       } else {
-        setStatusMessage(saveResult.error ?? "Failed to save post to history");
+        setStatusMessage(friendlyCriticalError(saveResult.error, "Save failed. Please try again."));
         setStatusTone("error");
       }
-    } catch (e) {
-      setStatusMessage(e instanceof Error ? e.message : "Unexpected error");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Post generation failed. Please try again.";
+      setStatusMessage(friendlyCriticalError(message, "Post generation failed. Please try again."));
       setStatusTone("error");
     } finally {
       setProgressText(null);
@@ -186,119 +227,130 @@ export function GeneratorClient() {
   };
 
   return (
-    <main className="space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight">LinkedIn Post Generator</h1>
-      <p className="text-sm text-slate-600">Create, refine, and reuse polished posts in one calm workspace.</p>
+    <main className="mx-auto max-w-7xl">
+      <PageHeader
+        title="Create a post"
+        subtitle="Turn your idea into a publish-ready LinkedIn draft with optional formatting, score, and image prompt."
+      />
 
-      <div className="grid gap-4 xl:grid-cols-12">
-        <Card className="space-y-4 xl:col-span-3">
+      <div className="grid gap-5 xl:grid-cols-12">
+        <AppCard className="space-y-4 xl:col-span-3">
           <SectionHeading title="Post settings" />
-          <div>
-            <textarea className="textarea min-h-28" placeholder="Post topic or idea" value={topic} onChange={(e) => setTopic(e.target.value)} />
-            <p className="mt-2 text-xs text-slate-500">Example: What I learned building my first AI tool</p>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Topic / idea</label>
+            <textarea
+              className="textarea min-h-28"
+              placeholder="Example: Lessons I learned building my first AI product"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+            />
           </div>
 
-          <select className="select" value={tone} onChange={(e) => setTone(e.target.value as (typeof tones)[number])}>
-            {tones.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Tone</label>
+            <select className="select" value={tone} onChange={(e) => setTone(e.target.value as (typeof tones)[number])}>
+              {tones.map((item) => (
+                <option key={item}>{item}</option>
+              ))}
+            </select>
+          </div>
 
-          <select className="select" value={format} onChange={(e) => setFormat(e.target.value as (typeof formats)[number])}>
-            {formats.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Format</label>
+            <select className="select" value={format} onChange={(e) => setFormat(e.target.value as (typeof formats)[number])}>
+              {formats.map((item) => (
+                <option key={item}>{item}</option>
+              ))}
+            </select>
+          </div>
 
-          <select className="select" value={length} onChange={(e) => setLength(e.target.value as (typeof lengths)[number])}>
-            {lengths.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium uppercase tracking-wide text-slate-500">Length</label>
+            <select className="select" value={length} onChange={(e) => setLength(e.target.value as (typeof lengths)[number])}>
+              {lengths.map((item) => (
+                <option key={item}>{item}</option>
+              ))}
+            </select>
+          </div>
 
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={needImagePrompt} onChange={(e) => setNeedImagePrompt(e.target.checked)} /> Generate image prompt
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={needScore} onChange={(e) => setNeedScore(e.target.checked)} /> Score post
-          </label>
+          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={needScore} onChange={(e) => setNeedScore(e.target.checked)} />
+              Score
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={needImagePrompt} onChange={(e) => setNeedImagePrompt(e.target.checked)} />
+              Image prompt
+            </label>
+          </div>
 
-          <button disabled={!topic.trim() || loading} onClick={generate} className="btn-primary w-full py-3 text-base">
-            {loading ? "Generating…" : "Generate post"}
-          </button>
+          <Button variant="primary" fullWidth disabled={!topic.trim() || loading} onClick={generate}>
+            {loading ? "Writing post…" : "Generate post"}
+          </Button>
 
           {progressText ? <StatusMessage message={progressText} tone="neutral" /> : null}
           {statusMessage ? <StatusMessage message={statusMessage} tone={statusTone} /> : null}
           {warnings.map((warning) => (
             <StatusMessage key={warning} message={warning} tone="warning" />
           ))}
-        </Card>
+        </AppCard>
 
-        <Card className="xl:col-span-6">
-          <SectionHeading title="Generated post" />
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <button className={`btn-secondary ${view === "original" ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800" : ""}`} onClick={() => setView("original")}>
+        <AppCard className="xl:col-span-6">
+          <SectionHeading title="Draft" />
+
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className={`btn-secondary ${view === "original" ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800" : ""}`}
+              onClick={() => setView("original")}
+            >
               Original
             </button>
-            <button className={`btn-secondary ${view === "formatted" ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800" : ""}`} onClick={() => setView("formatted")}>
+            <button
+              type="button"
+              className={`btn-secondary ${view === "formatted" ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800" : ""}`}
+              onClick={() => setView("formatted")}
+            >
               Formatted
             </button>
             <CopyButton className="ml-auto" value={activeText} />
           </div>
 
-          {view === "formatted" && !formattedContent && content ? (
-            <div className="mb-3">
-              <StatusMessage message="Formatted version was not generated. Showing original." tone="warning" />
-            </div>
-          ) : null}
-
           {content ? (
             <textarea
-              className="textarea min-h-[440px]"
+              className="textarea min-h-[540px] bg-slate-50"
+              placeholder="Your LinkedIn post will appear here."
               value={activeText}
               onChange={(e) => {
-                if (view === "formatted" && formattedContent) setFormattedContent(e.target.value);
-                else setContent(e.target.value);
+                if (view === "formatted" && formattedContent) {
+                  setFormattedContent(e.target.value);
+                } else {
+                  setContent(e.target.value);
+                }
               }}
             />
           ) : (
-            <EmptyState title="Your generated LinkedIn post will appear here." />
+            <EmptyState title="Your LinkedIn post will appear here." />
           )}
-        </Card>
+        </AppCard>
 
-        <div className="space-y-4 xl:col-span-3">
-          <Card>
-            <SectionHeading title="Engagement score" />
-            {score ? (
-              <>
-                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
-                  <p className="text-4xl font-bold text-slate-900">{Math.round(score.overallScore)}</p>
-                  <p className="mt-1 text-sm font-medium text-slate-600">{getScoreLabel(score.overallScore)}</p>
-                </div>
-                <div className="space-y-3">
-                  {scoreEntries.map(([key, value]) => (
-                    <ScoreCard
-                      key={String(key)}
-                      title={SCORE_LABELS[key as Exclude<keyof ScoreBreakdown, "overallScore">]}
-                      score={(value as { score: number }).score}
-                      tip={(value as { tip: string }).tip}
-                    />
-                  ))}
-                </div>
-              </>
-            ) : (
-              <EmptyState title="Generate a post to see the score." />
-            )}
-          </Card>
+        <div className="space-y-5 xl:col-span-3">
+          <ScorePanel score={score} />
 
-          <Card>
-            <SectionHeading title="Image prompt" />
+          <AppCard>
+            <SectionHeading title="Image prompt" subtitle="Optional" />
             {imagePrompt ? (
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{imagePrompt}</p>
+              <div className="space-y-3">
+                <p className="whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">
+                  {imagePrompt}
+                </p>
+                <CopyButton value={imagePrompt} />
+              </div>
             ) : (
-              <EmptyState title="Generate a post to get an image prompt." />
+              <EmptyState title="Generate a post to create an image prompt." />
             )}
-          </Card>
+          </AppCard>
         </div>
       </div>
     </main>
