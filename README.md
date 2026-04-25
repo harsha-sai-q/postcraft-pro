@@ -26,6 +26,20 @@ AI-powered LinkedIn post generator built with Next.js, Supabase Auth/Postgres, a
    npm run dev
    ```
 
+
+
+## Google OAuth setup (Supabase Auth)
+1. In **Supabase Dashboard → Authentication → Providers**, enable **Google**.
+2. In your Google Cloud OAuth client, add Supabase callback URL:
+   - `https://<your-project-ref>.supabase.co/auth/v1/callback`
+3. In **Supabase Dashboard → Authentication → URL Configuration**:
+   - Set **Site URL** to your app URL (for local: `http://localhost:3000`)
+   - Add redirect URLs for your environments, including:
+     - `http://localhost:3000/auth/callback`
+     - `https://<your-domain>/auth/callback`
+
+Google client credentials are managed in Supabase Dashboard. Do not hardcode Google client ID/secret in this codebase.
+
 ## Deploy to Vercel
 1. Import repository into Vercel.
 2. Add environment variables from `.env.local` in Vercel project settings.
