@@ -50,6 +50,7 @@ export function GeneratorClient() {
   const generate = async () => {
     setLoading(true);
     setError(null);
+    setStatus(null);
     try {
       const generated = await fetch("/api/generate-post", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, tone, format, length }) }).then((r) => r.json());
       if (!generated.ok) throw new Error(generated.error ?? "Failed generating post");
@@ -90,13 +91,17 @@ export function GeneratorClient() {
         }
       }
 
-      await fetch("/api/save-post", {
+      const saveResult = await fetch("/api/save-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic, tone, format, length, content: currentContent, highlighted_content: highlighted || null, formatted_content: formatted || null, score_breakdown: scoreData, engagement_score: scoreData?.overallScore ?? null, image_prompt: prompt || null })
-      });
+      }).then((r) => r.json());
 
-      setStatus("Saved successfully");
+      if (saveResult.ok) {
+        setStatus("Saved successfully");
+      } else {
+        setError(saveResult.error ?? "Save failed");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unexpected error");
     } finally {
