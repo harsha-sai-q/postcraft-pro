@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 const protectedRoutes = ["/dashboard", "/generator", "/history", "/analyzer", "/settings"];
+const authRedirectRoutes = ["/", "/login", "/signup"];
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request });
@@ -26,10 +27,17 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+
   if (protectedRoutes.some((route) => pathname.startsWith(route)) && !user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (user && authRedirectRoutes.includes(pathname)) {
+    const dashboardUrl = request.nextUrl.clone();
+    dashboardUrl.pathname = "/dashboard";
+    return NextResponse.redirect(dashboardUrl);
   }
 
   return response;
