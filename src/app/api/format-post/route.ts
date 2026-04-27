@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sarvamText } from "@/lib/sarvam";
+import { inputLimits, parseJsonBody, requiredString } from "@/lib/api-input";
 
 function extractFormattedContent(raw: string): string {
   const cleaned = raw.trim();
@@ -53,11 +54,17 @@ function localFormatPost(content: string): string {
 
 export async function POST(req: Request) {
   try {
-    const { content } = await req.json();
-
-    if (typeof content !== "string" || !content.trim()) {
-      return NextResponse.json({ ok: false, error: "Post content is required" }, { status: 400 });
+    const parsed = await parseJsonBody(req);
+    if (!parsed.ok) {
+      return NextResponse.json({ ok: false, error: parsed.error }, { status: 400 });
     }
+
+    const contentResult = requiredString(parsed.data, "content", "Post content", inputLimits.content);
+    if (!contentResult.ok) {
+      return NextResponse.json({ ok: false, error: contentResult.error }, { status: 400 });
+    }
+
+    const content = contentResult.value;
 
     try {
       const raw = await sarvamText(`
