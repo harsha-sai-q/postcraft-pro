@@ -20,7 +20,21 @@ PostCraft Pro is an AI-assisted LinkedIn writing workspace built with Next.js, S
 - **Deployment:** Vercel
 
 ## Screenshots
-- _Add product screenshots or walkthrough GIFs here._
+
+### Landing Page
+<img src="public/screenshots/Landing.png" alt="PostCraft Pro landing page" width="900" />
+
+### Dashboard
+<img src="public/screenshots/Dashboard.png" alt="PostCraft Pro dashboard" width="900" />
+
+### Generator
+<img src="public/screenshots/Generator.png" alt="PostCraft Pro generator" width="900" />
+
+### History
+<img src="public/screenshots/History.png" alt="PostCraft Pro history" width="900" />
+
+### Competitor Analyzer
+<img src="public/screenshots/Analyzer.png" alt="PostCraft Pro competitor analyzer" width="900" />
 
 ## Setup
 1. Clone the repository.
